@@ -17,6 +17,18 @@ file watch ─────┘                                   ├─ session: 
 - **Ledger** is a JSON file with atomic writes. Runs are recorded before the sink
   executes, so a crash is visible rather than silent.
 
+## Procedures: the fast path
+
+Most periodic work is deterministic: run tests, check a service, rotate a log.
+Sending that through a model is slower, costlier and less reproducible. A
+`procedure` source runs one command, records the exit code, duration and a bounded
+output tail, and only on failure invokes a sink (`onFailure`) to hand the evidence
+to an agent. This is the same fast/slow split used by the webhook policy: spend
+model calls on judgment, not on `exit 0`.
+
+The procedure record is intentionally small. The full output stays in the host's
+logs; the ledger keeps a tail so an operator can see what failed.
+
 ## Why not a workflow engine
 
 A workflow engine owns steps, retries and state transitions between steps. That

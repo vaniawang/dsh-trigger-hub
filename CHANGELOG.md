@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-02
+
+### Added
+
+- `procedure` sources: run one shell command without a model call, with
+  `timeoutMs`, `expectExitCode`, a bounded output tail and optional
+  `onFailure` / `onSuccess` sinks. Procedures may be scheduled with `cron` or
+  `every` and fired manually like any other source.
+
+### Notes
+
+- Procedures run as the host user; they are trusted configuration, not a sandbox.
+- The ledger keeps the last 2,000 characters of procedure output per run.
+
 ## [0.1.0] - 2026-11-02
 
 ### Added

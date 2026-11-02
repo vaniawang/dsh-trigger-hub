@@ -35,6 +35,20 @@
               kind: session
               cwd: /path/to/repository
 
+          - id: nightly-tests
+            kind: procedure
+            # Deterministic fast path: no model call on success.
+            every: 6h
+            command: "npm test"
+            cwd: /path/to/repository
+            timeoutMs: 900000
+            onFailure:
+              kind: session
+              cwd: /path/to/repository
+              prompt: |
+                Nightly tests failed: {{payload}}
+                Triage the first credible error and report evidence.
+
           - id: notes
             kind: watch
             path: /path/to/notes

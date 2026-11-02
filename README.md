@@ -1,8 +1,8 @@
 # dsh-trigger-hub
 
 > Give DeepSeek Harness agents something to react to: cron/interval schedules,
-> authenticated webhooks and file watchers that start or wake agent sessions —
-> with one ledger, one console and one concurrency limit.
+> authenticated webhooks, file watchers and deterministic procedures — with one
+> ledger, one console and one concurrency limit.
 
 `dsh-trigger-hub` is a small, dependency-free DSH bundle. It is an event source,
 not a workflow engine: it turns one external event into one agent run and records
@@ -19,6 +19,8 @@ This bundle keeps that glue in one place:
 - **Schedule**: `cron: "0 9 * * *"` or `every: 6h`.
 - **Webhook**: `POST /dsh-trigger-hub/hook/<id>` with a per-source token.
 - **Watch**: `fs.watch` on a path, debounced.
+- **Procedure**: run one shell command without a model call; a failure can
+escalate to an agent session or an HTTP endpoint.
 - **Sink**: create/resume a DSH session and prompt it, or POST the event to an
   HTTP endpoint (for example a super-agent router).
 - **Policy**: enable/pause, duplicate suppression, concurrency limit, quiet hours.
@@ -71,7 +73,7 @@ config:
 | Field | Applies to | Meaning |
 | --- | --- | --- |
 | `id` | all | Stable id used in routes, the ledger and the console. Required |
-| `kind` | all | `schedule`, `webhook` or `watch` |
+| `kind` | all | `schedule`, `webhook`, `watch` or `procedure` |
 | `enabled` | all | `false` disables the source without removing it |
 | `cron` / `every` | schedule | Five-field cron or an interval (`30s`, `5m`, `6h`, `2d`); exactly one |
 | `token` / `tokenEnv` | webhook | Shared token; `tokenEnv` reads it from the environment at request time |
@@ -79,11 +81,43 @@ config:
 | `debounceMs` | watch | Coalescing window, default `1500` |
 | `prompt` | all | Text for the session sink; `{{payload}}` is replaced with the event JSON |
 | `quietHours` | all | `{from: "22:00", to: "07:00"}` suppresses fires, wrapping midnight |
-| `sink` | all | `{kind: "session", cwd?, preset?}` (default) or `{kind: "http", url, method?, headers?}` |
+| `sink` | all | `{kind: "session", cwd?, preset?, prompt?}` (default for non-procedures) or `{kind: "http", url, method?, headers?}` |
+| `command` | procedure | Shell command to run with `/bin/bash -lc`; required |
+| `timeoutMs` | procedure | Kill the command after this long, default `600000` |
+| `expectExitCode` | procedure | Exit code treated as success, default `0` |
+| `captureChars` | procedure | Output tail kept in the run record, default `4000` |
+| `onFailure` | procedure | Sink to fire when the command fails or times out |
+| `onSuccess` | procedure | Optional sink to fire on success (same shape as `sink`) |
 
 A `schedule` source fires its sink and reschedules itself. A `watch` source
 debounces filesystem events. A `webhook` source only fires when called with the
 right token.
+
+### Procedures
+
+A procedure is the deterministic fast path: no model call, just one command and
+an exit-code verdict. It can be fired manually, or scheduled with the same
+`cron` / `every` fields as a schedule source. On failure the optional
+`onFailure` sink receives a payload containing `procedure.output` and runs an
+agent session (or an HTTP post), so judgment is spent only when something went
+wrong.
+
+```yaml
+- id: nightly-tests
+  kind: procedure
+  every: 6h
+  command: "npm test"
+  cwd: /path/to/repository
+  timeoutMs: 900000
+  onFailure:
+    kind: session
+    cwd: /path/to/repository
+    prompt: "Nightly tests failed. Triage this output: {{payload}}"
+```
+
+The run record keeps the exit code, duration and a bounded output tail. A
+procedure runs with the host user's permissions; treat the command as trusted
+configuration, not as untrusted input.
 
 ### Session sink
 
@@ -135,6 +169,8 @@ as `deduped`, without calling the sink.
   configuration edits followed by a reload.
 - This is not a workflow engine. For multi-step, multi-agent work, point the HTTP
   sink at an agent router.
+- Procedures are not sandboxed: they run in the host process tree with the host
+  user's permissions.
 
 ## Development
 

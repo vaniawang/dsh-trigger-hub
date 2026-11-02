@@ -20,6 +20,7 @@ new behaviour should be covered by a unit test that runs on Node 22+.
 | `src/schedule.js` | duration and cron parsing (pure) |
 | `src/policy.js` | fire decisions and ledger transitions (pure) |
 | `src/store.js` | JSON ledger with atomic writes |
+| `src/procedure.js` | deterministic command execution (spawn, timeout, output tail) |
 | `src/runtime.js` | sources, sinks, timers and watchers |
 | `src/panel.js` | server-rendered console |
 
