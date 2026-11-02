@@ -53,7 +53,12 @@ function response() {
 async function call(routes, route, options) {
   const res = response();
   routes.get(route)(request(options), res);
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  // Route handlers are async and may create the runtime on first access; wait
+  // for the response instead of assuming a fixed scheduling delay.
+  const deadline = Date.now() + 5_000;
+  while (res.status === undefined && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
   return res;
 }
 
@@ -64,7 +69,8 @@ test('routes, health, token auth and a session prompt', async () => {
     stateDir: dir,
     sources: [{ id: 'ci', kind: 'webhook', token: 'secret', prompt: 'CI {{payload}}', sink: { kind: 'session', cwd: '/tmp' } }],
   });
-  await new Promise((resolve) => setTimeout(resolve, 150));
+  // Keep this short; the health/hook calls below wait for their own response.
+  await new Promise((resolve) => setTimeout(resolve, 20));
   assert.deepEqual([...host.routes.keys()].sort(), [
     '/dsh-trigger-hub/health',
     '/dsh-trigger-hub/hook/ci',
@@ -94,7 +100,6 @@ test('routes, health, token auth and a session prompt', async () => {
 test('a webhook source without a token is rejected at configuration time', async () => {
   const host = fakeHost();
   apply(host.ctx, { stateDir: path.join(os.tmpdir(), 'trigger-hub-index-invalid'), sources: [{ id: 'bad', kind: 'webhook' }] });
-  await new Promise((resolve) => setTimeout(resolve, 100));
   const health = await call(host.routes, '/dsh-trigger-hub/health', {});
   assert.equal(health.status, 200);
   assert.equal(JSON.parse(health.body).sources, 0);
