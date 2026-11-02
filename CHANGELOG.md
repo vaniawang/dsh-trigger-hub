@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-11-02
+
+### Fixed
+
+- Declare `dsh.bundle.patch` in `package.json`. Without it the package is not a
+  valid DSH bundle and marketplace catalogs reject it.
+- Add the repository/homepage metadata used by package indexes.
+
 ## [0.2.0] - 2026-11-02
 
 ### Added

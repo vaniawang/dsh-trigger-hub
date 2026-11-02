@@ -1,6 +1,6 @@
 {
   "name": "dsh-trigger-hub",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Event sources for DeepSeek Harness agents: cron/interval schedules, authenticated webhooks and file watchers that start or wake agent sessions, with a ledger and a small console.",
   "type": "module",
   "main": "index.js",
@@ -35,5 +35,18 @@
     "agent"
   ],
   "license": "MIT",
-  "author": "dsh-trigger-hub contributors"
+  "author": "dsh-trigger-hub contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vaniawang/dsh-trigger-hub.git"
+  },
+  "homepage": "https://github.com/vaniawang/dsh-trigger-hub#readme",
+  "bugs": {
+    "url": "https://github.com/vaniawang/dsh-trigger-hub/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
 }
