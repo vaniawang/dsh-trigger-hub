@@ -8,6 +8,7 @@ import { promises as fs, watch as fsWatch } from 'node:fs';
 import { createStore, defaultState } from './store.js';
 import { delayUntilNext, scheduleOf } from './schedule.js';
 import { dedupeKey, recordFire, shouldFire, finishRun } from './policy.js';
+import { runProcedure } from './procedure.js';
 
 const DEFAULT_TIMERS = { setTimeout, clearTimeout, setInterval, clearInterval };
 const MAX_BODY_BYTES = 64 * 1024;
@@ -62,15 +63,16 @@ export async function createRuntime(ctx, options = {}) {
     throw new Error('no session service can create ' + sessionId);
   }
 
-  function promptText(source, payload) {
-    if (typeof source.prompt === 'string' && source.prompt.trim() !== '') {
-      return source.prompt.replace(/\{\{\s*payload\s*\}\}/g, JSON.stringify(payload ?? {}, null, 2));
+  function promptText(source, payload, sink) {
+    const template = typeof sink?.prompt === 'string' && sink.prompt.trim() !== '' ? sink.prompt : source.prompt;
+    if (typeof template === 'string' && template.trim() !== '') {
+      return template.replace(/\{\{\s*payload\s*\}\}/g, JSON.stringify(payload ?? {}, null, 2));
     }
     return `[Trigger] ${source.id}\n${JSON.stringify(payload ?? {}, null, 2)}`;
   }
 
-  async function runSink(source, payload, runId) {
-    const sink = source.sink ?? { kind: 'session' };
+  async function runSink(source, payload, runId, sink = source.sink) {
+    if (!sink) return { detail: 'no sink' };
     if (sink.kind === 'http') {
       const response = await fetch(sink.url, {
         method: sink.method ?? 'POST',
@@ -88,7 +90,7 @@ export async function createRuntime(ctx, options = {}) {
       requestId: `trigger-hub-${runId}`,
       sessionId,
       mode: 'queue',
-      content: [{ type: 'text', text: promptText(source, payload) }],
+      content: [{ type: 'text', text: promptText(source, payload, sink) }],
     }, new AbortController().signal);
     return { sessionId, detail: 'prompted ' + sessionId };
   }
@@ -118,6 +120,23 @@ export async function createRuntime(ctx, options = {}) {
     });
     const promise = (async () => {
       try {
+        if (source.kind === 'procedure') {
+          const outcome = await runProcedure(source);
+          const summary = outcome.timedOut
+            ? `timed out after ${outcome.durationMs}ms`
+            : `exit=${outcome.code ?? 'null'} in ${outcome.durationMs}ms`;
+          const sink = outcome.ok ? source.sink : (source.onFailure ?? source.sink);
+          let sinkDetail = 'no sink';
+          if (sink) {
+            try { sinkDetail = (await runSink(source, { ...payload, procedure: outcome }, runId, sink)).detail; }
+            catch (error) { sinkDetail = 'sink failed: ' + String(error?.message ?? error); }
+          }
+          const status = outcome.ok ? 'done' : 'failed';
+          await store.transact((draft) => {
+            Object.assign(draft, finishRun(draft, runId, status, `${summary}; ${sinkDetail}`, outcome.output));
+          });
+          return { ok: outcome.ok, runId, status, detail: summary, output: outcome.output };
+        }
         const result = await runSink(source, payload, runId);
         await store.transact((draft) => { Object.assign(draft, finishRun(draft, runId, 'done', result.detail)); });
         return { ok: true, runId, ...result };
@@ -174,7 +193,9 @@ export async function createRuntime(ctx, options = {}) {
   function start() {
     if (stopped) return;
     for (const source of sources) {
-      if (source.kind === 'schedule') scheduleSource(source);
+      const scheduled = source.kind === 'schedule'
+        || (source.kind === 'procedure' && (source.cron !== undefined || source.every !== undefined));
+      if (scheduled) scheduleSource(source);
       else if (source.kind === 'watch') watchSource(source);
     }
   }
@@ -195,7 +216,7 @@ export async function createRuntime(ctx, options = {}) {
       counters: state.counters ?? { fired: 0, failed: 0, deduped: 0 },
       sources: sources.map((source) => ({
         id: source.id, kind: source.kind, enabled: source.enabled !== false,
-        schedule: source.kind === 'schedule' ? (source.cron ?? source.every ?? null) : null,
+        schedule: (source.kind === 'schedule' || source.kind === 'procedure') ? (source.cron ?? source.every ?? null) : null,
         last: (state.runs ?? []).find((run) => run.sourceId === source.id) ?? null,
       })),
       runs: (state.runs ?? []).slice(0, 50),

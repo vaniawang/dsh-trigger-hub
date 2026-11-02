@@ -147,16 +147,35 @@ function validateSource(source) {
     throw configError('every source needs a non-empty id');
   }
   const kind = source.kind;
-  if (!['schedule', 'webhook', 'watch'].includes(kind)) throw configError(`source ${source.id}: kind must be schedule, webhook or watch`);
-  const sink = source.sink ?? { kind: 'session' };
-  if (!['session', 'http'].includes(sink.kind)) throw configError(`source ${source.id}: sink.kind must be session or http`);
-  if (sink.kind === 'http' && (typeof sink.url !== 'string' || !/^https?:\/\//.test(sink.url))) {
-    throw configError(`source ${source.id}: sink.url must be an http(s) URL`);
+  if (!['schedule', 'webhook', 'watch', 'procedure'].includes(kind)) {
+    throw configError(`source ${source.id}: kind must be schedule, webhook, watch or procedure`);
   }
+  const validateSink = (sink, label) => {
+    if (!['session', 'http'].includes(sink.kind)) throw configError(`source ${source.id}: ${label}.kind must be session or http`);
+    if (sink.kind === 'http' && (typeof sink.url !== 'string' || !/^https?:\/\//.test(sink.url))) {
+      throw configError(`source ${source.id}: ${label}.url must be an http(s) URL`);
+    }
+    return sink;
+  };
+  const sink = source.sink ?? (kind === 'procedure' ? undefined : { kind: 'session' });
+  if (sink !== undefined) validateSink(sink, 'sink');
+  if (source.onFailure !== undefined) validateSink(source.onFailure, 'onFailure');
+  if (source.onSuccess !== undefined) validateSink(source.onSuccess, 'onSuccess');
   if (kind === 'schedule') {
     if (source.cron === undefined && source.every === undefined) throw configError(`source ${source.id}: schedule needs cron or every`);
     if (source.cron !== undefined) parseCron(source.cron);
     else parseDuration(source.every);
+  }
+  if (kind === 'procedure') {
+    if (typeof source.command !== 'string' || source.command.trim() === '') {
+      throw configError(`source ${source.id}: procedure needs a command`);
+    }
+    if (source.cron !== undefined && source.every !== undefined) throw configError(`source ${source.id}: use either cron or every, not both`);
+    if (source.cron !== undefined) parseCron(source.cron);
+    if (source.every !== undefined) parseDuration(source.every);
+    if (source.timeoutMs !== undefined && (!Number.isInteger(source.timeoutMs) || source.timeoutMs <= 0)) {
+      throw configError(`source ${source.id}: timeoutMs must be a positive integer`);
+    }
   }
   if (kind === 'watch' && (typeof source.path !== 'string' || source.path === '')) {
     throw configError(`source ${source.id}: watch needs a path`);

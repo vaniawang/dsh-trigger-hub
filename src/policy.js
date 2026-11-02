@@ -68,8 +68,10 @@ export function recordFire(state, { sourceId, kind, key, at, runId, sink, sessio
 }
 
 /** Marks one run done or failed; returns a new ledger. */
-export function finishRun(state, runId, status, detail = '') {
-  const runs = (state.runs ?? []).map((run) => (run.runId === runId ? { ...run, status, detail } : run));
+export function finishRun(state, runId, status, detail = '', output) {
+  const runs = (state.runs ?? []).map((run) => (run.runId === runId
+    ? { ...run, status, detail, ...(output ? { output: String(output).slice(-2000) } : {}) }
+    : run));
   const counters = { ...(state.counters ?? { fired: 0, failed: 0, deduped: 0 }) };
   if (status === 'failed') counters.failed = (counters.failed ?? 0) + 1;
   return { ...state, runs, counters };
