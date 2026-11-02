@@ -1,0 +1,30 @@
+{
+  "name": "dsh-trigger-hub",
+  "version": "0.1.0",
+  "description": "Event sources for DeepSeek Harness agents: cron/interval schedules, authenticated webhooks and file watchers that start or wake agent sessions, with a ledger and a small console.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "src/*.js",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "check": "node --check index.js && node --check src/schedule.js && node --check src/policy.js && node --check src/store.js && node --check src/runtime.js && node --check src/panel.js && node --test",
+    "pack:check": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.1-alpha.2 <0.3.0-0"
+  },
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "automation", "cron", "webhook", "scheduler", "agent"],
+  "license": "MIT",
+  "author": "dsh-trigger-hub contributors"
+}

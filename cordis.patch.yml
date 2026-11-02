@@ -1,0 +1,5 @@
+# Inserts the trigger hub as a Host plugin. Configuration is supplied by the
+# profile row; see README.md for the shape and examples/profile.cordis.yml.
+- insert:
+    - id: dsh-trigger-hub
+      name: dsh-trigger-hub

@@ -1,0 +1,47 @@
+# Example: mount dsh-trigger-hub with a small set of sources.
+# The installed bundle already inserts the plugin row; if your profile
+# overrides that id, override only the `config` block.
+- insert:
+    - id: dsh-trigger-hub
+      name: dsh-trigger-hub
+      config:
+        # Ledger location. Defaults to $DSH_HOME/dsh-trigger-hub.
+        stateDir: /path/to/trigger-hub-state
+        # Maximum number of concurrent runs across all sources.
+        concurrency: 2
+        # Suppress a repeated webhook delivery with the same id for this long.
+        dedupeWindowMs: 60000
+        sources:
+          - id: nightly-review
+            kind: schedule
+            # Every day at 09:00 local time. `every: 6h` is also supported.
+            cron: "0 9 * * *"
+            prompt: |
+              Review the repository for failing tests and open issues.
+              Report a short summary; do not modify files.
+            sink:
+              kind: session
+              cwd: /path/to/repository
+              preset: standard
+
+          - id: ci-failure
+            kind: webhook
+            # Read the token from an environment variable; never store it here.
+            tokenEnv: TRIGGER_HUB_TOKEN
+            prompt: |
+              A CI failure was reported: {{payload}}
+              Triage it and report the first credible error with evidence.
+            sink:
+              kind: session
+              cwd: /path/to/repository
+
+          - id: notes
+            kind: watch
+            path: /path/to/notes
+            debounceMs: 2000
+            prompt: |
+              A file changed: {{payload}}
+              Update the index and report the change.
+            sink:
+              kind: http
+              url: http://127.0.0.1:8080/events
